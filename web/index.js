@@ -166,7 +166,7 @@ export async function createServer(
         ...variant, 
         inventory_policy: "continue",
         inventory_management: null, 
-        image_id: null // TODO: image
+        image_id: null // TODO: reference images for variants
       }));
       newProduct.images = product.images.map(image => ({ src: image.src }));
       newProduct.options = product.options;

@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 import express from "express";
 import cookieParser from "cookie-parser";
 import { Shopify, LATEST_API_VERSION } from "@shopify/shopify-api";
+import {Product} from '@shopify/shopify-api/dist/rest-resources/2022-10/index.js';
 
 import applyAuthMiddleware from "./middleware/auth.js";
 import verifyRequest from "./middleware/verify-request.js";
@@ -136,6 +137,60 @@ export async function createServer(
   // All endpoints after this point will have access to a request.body
   // attribute, as a result of the express.json() middleware
   app.use(express.json());
+
+  app.post("/api/products/create", async (req, res) => {
+    const session = await Shopify.Utils.loadCurrentSession(
+      req,
+      res,
+      app.get("use-online-tokens")
+    );
+    let status = 200;
+    let error = null;
+    let newProductId = null;
+    
+    try {
+      const product = req.body?.product;
+
+      if (!product) {
+        throw `Missing product data`;
+      }
+    
+      const newProduct = new Product({ session });
+      newProduct.title = product.title;
+      newProduct.body_html = product.body_html;
+      newProduct.vendor = product.vendor;
+      newProduct.product_type = product.product_type;
+      newProduct.tags = product.tags;
+      newProduct.handle = product.handle;
+      newProduct.variants = product.variants.map(variant => ({ 
+        ...variant, 
+        inventory_policy: "continue",
+        inventory_management: null, 
+        image_id: null // TODO: image
+      }));
+      newProduct.images = product.images.map(image => ({ src: image.src }));
+      newProduct.options = product.options;
+      // TODO: metafields
+
+      await newProduct.save({
+        update: true,
+      });
+
+      newProductId = newProduct.id;
+     //await productCreator(session);
+    } catch (e) {
+      console.log(`Failed to process products/create: ${e.message}`);
+      status = 500;
+      error = e.message;
+    }
+
+    res.status(status).send({ 
+      success: status === 200, 
+      error,
+      shop: session.shop,
+      productId: newProductId,
+    });
+  });
 
   app.use((req, res, next) => {
     const shop = Shopify.Utils.sanitizeShop(req.query.shop);
